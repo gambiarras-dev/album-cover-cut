@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Encadernadora Brumas</title>
+  <meta charset="utf-8">
+  <script src="https://unpkg.com/vue"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/2.3.3/fabric.min.js"></script>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css" integrity="sha384-WskhaSGFgHYWDcbwN70/dfYBj47jz9qbsMId/iRN3ewGhXQFZCSftd1LZCfmhktB" crossorigin="anonymous">
+  <style>
+    @media print {
+      @page {size: landscape}
+      window, document, body, .container, .row, .col-md-12{
+        padding: 0;
+        margin: 20px;
+      }
+      .no-print {
+        display: none;
+      }
+    }
+
+    body {
+      background-image: url(assets/logo-brumas.jpg);
+      background-size: 30%;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+
+    #folha{
+      width: 32cm;
+      height: 15cm;
+      background-size: 100%;
+      padding: 1.5cm;
+    }
+    
+    #folha #interno{
+      background: #ddd;
+      width: 100%;
+      height: 100%;
+      opacity: .2;
+    }
+    
+    #folha #interno #capa{
+      width: 15cm;
+      height: 15cm;
+      background: red;
+      float: left;
+      opacity: .2;
+    }
+    
+    #folha #interno #dorso{
+      width: 2cm;
+      background: #fff;
+      height: 100%;
+      float: left;
+      opacity: .8;
+    }
+    
+    #folha #interno #contra-capa{
+      width: 15cm;
+      height: 15cm;
+      background: yellow;
+      float: left;
+      opacity: .2;
+    }
+    
+    #folha h1{
+      text-align: center;
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" class="container">
+    <div class="row no-print">
+      <div class="col-md-12">
+        <form>
+          <div class="form-group">
+              <label for="tipo1"><input type="radio" id="tipo1" value="encadernado" v-model="tipo" checked> Encadernado (páginas grossas):</label>
+          </div>
+          <div class="form-group">
+              <label for="tipo2"><input type="radio" id="tipo2" value="fotolivro" v-model="tipo"> Fotolivro (páginas finas):</label>
+          </div>
+          <div class="form-group">
+            <label for="tamanho">Medida da lâmina</label>
+            <select id="tamanho" class="form-control" v-model="tamanho">
+              <option disabled value="">Selecione o medida das lâminas</option>
+              <option v-for="l in laminas" :value="l">{{l}}</option>
+            </select>
+            <small id="emailHelp" class="form-text text-muted">Considerar o tamanho como Altura x Largura</small>
+          </div>
+          <div class="form-group">
+            <label for="quantidade">Quantidade de lâminas</label>
+            <input type="number" id="quantidade" v-model="quantidade" class="form-control">
+            <small id="emailHelp" class="form-text text-muted">Informar o total de lâminas do albúm</small>
+          </div>
+          <button v-on:click="render" class="btn btn-primary">Calcular</button>
+        </form>
+      </div>
+    </div>
+    <canvas id="c" width="600" height="600"></canvas>
+    <div class="row">
+      <div class="col-md-6">
+        <p v-if="total > 0">
+          Medidas da capa:<br/>
+  
+          Album com <strong>{{quantidade}}</strong> lâminas na medida <strong>{{tamanho}}</strong><br/>
+  
+          Comprimento = <strong>2.3 / {{capaL.toFixed(1)}} / {{dorso.toFixed(1)}} / {{capaL.toFixed(1)}} / 2.3</strong><br/>
+          Altura = <strong>2.3 / {{capaA}} / 2.3</strong><br/>
+  
+          Medida para impressão: <strong><strong>{{total.toFixed(1)}}cm</strong> de largura e {{alturaTotal.toFixed(1)}}cm</strong> de altura.<br/>
+        </p>
+      </div>
+      <div class="col-md-3">
+        Legenda: <br/>
+        <img style="background-color: #0d0; border:0;" width=20 height="20"> área útil (capa e contra-capa)<br/>
+        <img style="background-color: yellow;" width=20 height="20"> dorso<br/>
+        <img style="background-color: #f55;" width=20 height="20"> sangria<br/>
+      </div>
+      <div class="col-md-3">
+        <img src="assets/logo-brumas.jpg" width="300">
+      </div>
+    </div>
+    
+  </div>
+  <script>
+    new Vue({
+      el: '#app',
+      data: {
+        tipo: 'encadernado',
+        tamanho: "0x0",
+        quantidade: 0,
+        margem: 3,
+        largura: 0,
+        altura: 0,
+        alturaTotal: 0,
+        dorso: 0,
+        capaA: 0,
+        capaL: 0,
+        total: 0,
+        folha: {
+          width: '30cm',
+          height: '15cm'
+        },
+        capa: {
+          width: '15cm',
+          height: '15cm'
+        },
+        dorsoStyle: {
+          width: "0px"
+        },
+        laminas: [
+          '12.5x30',
+          '15x30',
+          '15x35',
+          '15x40',
+          '20x40',
+          '20x50',
+          '20x60',
+          '24x60',
+          '25x40',
+          '25x50',
+          '25x60',
+          '30x70',
+          '30x40',
+          '30x48',
+          '30x50',
+          '30x60',
+          '30x80',
+          '40x80',
+        ]
+      },
+      watch: {
+        tipo: function(newVal, oldVal) {
+          this.render(new Event('click'));
+        }
+      },
+      methods: {
+        render: function(event) {
+          if (event) event.preventDefault();
+          let _m = 2.3; 
+          this.largura = parseFloat(this.tamanho.split("x")[1]);
+          this.altura = parseFloat(this.tamanho.split("x")[0]);
+          this.dorso = this.quantidade * (this.tipo == 'encadernado' ? 0.119 : 0.1);
+          this.capaL = (this.largura / 2) + 1.2;
+          this.capaA = this.altura + 0.8
+          this.alturaTotal = this.capaA + _m*2;
+          this.total = Math.round(((this.capaL * 2 + this.dorso + _m * 2) * 10)) / 10;      
+          //canvas
+
+          var canvas = this.__canvas = new fabric.StaticCanvas('c');
+
+          let escala = 15; //1cm = 28px
+          let margem = _m * escala;
+          let folha = {
+            width: (this.capaL * 2 + this.dorso + (_m*2))  * escala,
+            height: (this.capaA + (_m*2)) * escala,
+          }
+          let capa = {
+            width: this.capaL  * escala,
+            height: this.capaA * escala,
+          }
+          let dorso = (margem + capa.width) + (this.dorso * escala);
+
+          let seta = (canvas, attr) => {
+            if(!attr.hasOwnProperty('top')) attr.top = 0;
+            if(!attr.hasOwnProperty('size')) attr.size = 22;
+            if(!attr.hasOwnProperty('left')) attr.left = 0;
+            if(!attr.hasOwnProperty('text')) attr.text = _m+'cm';
+            if(!attr.hasOwnProperty('orientation')) attr.orientation = 'vertical';
+            if(!attr.hasOwnProperty('textOrientation')) attr.textOrientation = 'horizontal';
+
+            if(attr.orientation == 'vertical') {
+              attr.angle1 = 0;
+              attr.angle2 = 180;
+              attr.lineHeight = 0;
+              attr.lineWidth = attr.size;
+              attr.lineTop = attr.top +4;
+              attr.downTop = attr.size + attr.top + 8;
+              attr.downLeft = attr.left + 16.5;
+
+              attr.textTop = attr.top + attr.size/2 - 4;
+              attr.textLeft = attr.left + 13;
+            } else {
+              attr.angle1 = -90;
+              attr.angle2 = 90;
+              attr.lineHeight = attr.size;
+              attr.lineWidth = 0;
+              attr.lineTop = attr.top -4;
+              attr.downTop = attr.top -8;
+              attr.downLeft = attr.left + attr.size + 13;
+
+              attr.textTop = attr.top;
+              attr.textLeft = attr.left + attr.size/2 - 10;
+            }
+
+            if(attr.textOrientation == 'vertical') {
+              attr.textAngle = -90;
+              attr.textTop += 30;
+            } else {
+              attr.textAngle = 0;
+            }
+
+            let triangulo = new fabric.Polygon([{x: 0, y: 0}, {x: 10, y: 0}, {x: 5, y: -5}, {x: 0, y: 0} ], {left: attr.left + 5, top: attr.top+2, fill: '#333', angle: attr.angle1});
+            let line = new fabric.Line([ 0, 0, attr.lineHeight, attr.lineWidth], {left: attr.left+10, top: attr.lineTop, stroke: '#333', strokeWidth: 2});
+            let triangulo2 = new fabric.Polygon([{x: 0, y: 0}, {x: 10, y: 0}, {x: 5, y: -5}, {x: 0, y: 0} ], {left: attr.downLeft, top: attr.downTop, fill: '#333', angle: attr.angle2});
+            
+
+            let text = new fabric.IText(attr.text, {left: attr.textLeft, top: attr.textTop, fill: '#000', fontSize: 16, angle: attr.textAngle});
+            
+            canvas.add(text, triangulo, line, triangulo2);
+          };
+
+          //let linha;
+          canvas.setDimensions({width: folha.width + 50, height: folha.height + 100} );
+          canvas.add(
+            new fabric.Rect({ top: 0, left: 0, width: folha.width, height: folha.height, fill: '#f55' }),
+            new fabric.Rect({ top: margem, left: margem, width: capa.width, height: capa.height, fill: '#0d0' }),
+            new fabric.Rect({ top: margem, left: (dorso - this.dorso * escala), width: (this.dorso * escala), height: capa.height, fill: 'yellow' }),
+            new fabric.Rect({ top: margem, left: dorso, width: capa.width, height: capa.height, fill: '#0d0' }),
+            new fabric.IText("Contra-capa", { top: margem + 40, left: margem+(capa.width/2)-100, fill: '#FFF'}),
+            new fabric.IText("Capa", { top: margem + 40, left: dorso+(capa.width/2)-40, fill: '#FFF'}),
+          );
+
+          seta(canvas, {left: margem+(capa.width/2)}); //margem superior contracapa
+          seta(canvas, {left: dorso+(capa.width/2)}); //margem superior capa
+          seta(canvas, {left: margem+(capa.width/2), top: margem + capa.height}); //margem inferior contracapa
+          seta(canvas, {left: dorso+(capa.width/2), top: margem + capa.height}); //margem inferior capa
+          seta(canvas, {left: 0, top: capa.height/2+30, orientation: 'horizontal'}); //margem lateral contracapa
+          seta(canvas, {left: dorso+capa.width, top: capa.height/2+30, orientation: 'horizontal'}); //margem lateral capa
+          seta(canvas, {left: (dorso-(this.dorso*escala)-4), top: (capa.height/2+30), text: this.dorso.toFixed(1) + 'cm', size: (this.dorso*escala-10), orientation: 'horizontal'});// margem dorso
+          seta(canvas, {size: capa.width - 20, left: margem, top: margem + capa.height/2 - 5, text: this.capaL.toFixed(1) + 'cm', orientation:'horizontal'}); // tamanho contracapa largura
+          seta(canvas, {size: capa.width - 20, left: dorso, top: margem + capa.height/2 - 5, text: this.capaL.toFixed(1) + 'cm', orientation:'horizontal'}); //tamanho capa largura
+
+          seta(canvas, {size: capa.height, left: margem + 40, top: margem, text: this.capaA  + 'cm', textOrientation: 'vertical'})// tamanho contracapa altura
+          seta(canvas, {size: capa.height, left: dorso + 40, top: margem, text: this.capaA  + 'cm', textOrientation: 'vertical'})// tamanho contracapa altura
+
+          seta(canvas, {left: folha.width, size: folha.height-5, top: -2, text: (this.capaA + _m*2) + 'cm', textOrientation: 'vertical'}); // altura externa total
+          seta(canvas, {left: -5, size: folha.width-5, top: folha.height + 10, text: this.total + 'cm', orientation: 'horizontal'}); // largura externa total
+        }
+      }
+    })
+  </script>
+</body>
+</html>
